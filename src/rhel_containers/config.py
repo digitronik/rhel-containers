@@ -1,16 +1,19 @@
-import yaml
 from pathlib import Path
+
 import rhel_containers as rc
+import yaml
 from box import Box
 
 PROJECT_PATH = Path(rc.__file__).parent
 DEFAULT_CONF = PROJECT_PATH.joinpath("conf", "conf.yaml")
-LOCAL_CONF = Path.home().joinpath(".config","rhel_cont.yaml")
+LOCAL_CONF = Path.home().joinpath(".config", "rhel_cont.yaml")
+
 
 def merge(a, b, path=None):
     """Merge a dict to b dict."""
 
-    if path is None: path = []
+    if path is None:
+        path = []
     for key in b:
         if key in a:
             if isinstance(a[key], dict) and isinstance(b[key], dict):
@@ -28,6 +31,7 @@ def merge(a, b, path=None):
 def _load_file(path):
     with path.open() as fp:
         return yaml.safe_load(fp)
+
 
 def load_config(env, extra_conf=None):
     conf = _load_file(DEFAULT_CONF)
