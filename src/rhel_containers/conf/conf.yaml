@@ -1,0 +1,35 @@
+default:
+  rhel_containers:
+    repositories:
+      7: "registry.access.redhat.com/ubi7/ubi-init"
+      8: "registry.access.redhat.com/ubi8/ubi-init"
+    subscription:
+      server: "subscription.rhsm.redhat.com"
+    insights_client:
+      conf_path: "/etc/insights-client/insights-client.conf"
+      entrypoint: "cloud.redhat.com/api"
+
+qa:
+  rhel_containers:
+    username: null
+    password: null
+    subscription:
+      server: "subscription.rhsm.qa.redhat.com"
+      cdn: "http://cdn.redhat.com/"
+    insights_client:
+      entrypoint: "qa.cloud.redhat.com/api"
+
+ci:
+  rhel_containers:
+    username: null
+    password: null
+    subscription:
+      server: "subscription.rhsm.qa.redhat.com"
+      cdn: "http://cdn.redhat.com/"
+    insights_client:
+      entrypoint: "ci.cloud.redhat.com/api"
+
+prod:
+  rhel_containers:
+    username: null
+    password: null
