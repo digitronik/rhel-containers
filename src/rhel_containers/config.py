@@ -34,6 +34,7 @@ def _load_file(path):
 
 
 def load_config(env, extra_conf=None):
+    """Load configuration files."""
     conf = _load_file(DEFAULT_CONF)
 
     # overwrite local conf is available
