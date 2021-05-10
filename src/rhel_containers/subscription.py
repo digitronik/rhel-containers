@@ -1,24 +1,22 @@
 # RHEL Subscription management.
-QA_SERVER_URL = "subscription.rhsm.qa.redhat.com"
-PROD_SERVER_URL = "subscription.rhsm.redhat.com"
-BASE_URL = "http://cdn.redhat.com/"
 
 
 class Subscription:
-    def __init__(self, engine, username, password, env="qa"):
+    def __init__(self, engine, config, env="qa", *args, **kwargs):
         self.engine = engine
-        self.username = username
-        self.password = password
+        self.config = config
         self.env = env
-        self.serverurl = PROD_SERVER_URL if env == "prod" else QA_SERVER_URL
 
     def register(self, auto_attach=True, force=True):
-        if not (self.username and self.password):
+        if not (self.config.username and self.config.password):
             raise ValueError("Please provide credentials to subscribe.")
 
-        cmd = f"subscription-manager register --serverurl={self.serverurl} --username={self.username} --password={self.password}"
+        cmd = (
+            f"subscription-manager register --serverurl={self.config.subscription.server} "
+            f"--username={self.config.username} --password={self.config.password}"
+        )
         if self.env != "prod":
-            cmd = f"{cmd} --baseurl={BASE_URL}"
+            cmd = f"{cmd} --baseurl={self.config.subscription.cdn}"
         if auto_attach:
             cmd = f"{cmd} --auto-attach"
         if force:
