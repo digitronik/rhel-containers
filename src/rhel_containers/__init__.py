@@ -1,36 +1,49 @@
+import datetime
 import re
 import shutil
 import subprocess
 
 from packaging import version
+from rhel_containers.config import load_config
 from rhel_containers.engine import PodmanEngine
 from rhel_containers.insights_client import InsightsClient
 from rhel_containers.subscription import Subscription
 
-REPOS = {
-    7: "registry.access.redhat.com/ubi7/ubi-init",
-    8: "registry.access.redhat.com/ubi8/ubi-init",
-}
+EPEL_URL = "https://dl.fedoraproject.org/pub/epel/epel-release-latest-{major_ver}.noarch.rpm"
 
 
 class RhelContainer:
-    def __init__(self, engine_name="auto", release=8.0, name=None, *args, **kwargs):
-        # engine
+    def __init__(self, engine_name="auto", release=8.3, name=None, *args, **kwargs):
         self.engine_name = engine_name
+        self.env = kwargs.get("env", "qa")
         self.version = version.parse(str(release))
-        self.image = f"{REPOS[self.version.major]}:{self.version.base_version}"
-        self.name = name or f"rhel-{self.version}"
-        self.engine = PodmanEngine(image=self.image, name=self.name, engine=engine_name)
+        self.name = name or f"rhel-{datetime.datetime.now().strftime('%y%m%d-%H%M%S')}"
+        self.config = load_config(env=self.env, extra_conf=kwargs.get("config"))
+
+        # engine
+        self.engine = PodmanEngine(name=self.name, engine=engine_name)
 
         # Subscription
-        self.env = kwargs.get("env", "qa")
         self.subscription = Subscription(
             engine=self.engine,
             username=kwargs.get("username"),
             password=kwargs.get("password"),
+            config=self.config,
             env=self.env,
         )
-        self.insight_client = InsightsClient(engine=self.engine, env=self.env)
+
+        # Insights-client
+        self.insights_client = InsightsClient(engine=self.engine, config=self.config, env=self.env)
+
+    def start(self, *args):
+        """Start container."""
+        repo = self.config.repositories.get(self.version.major)
+        image = f"{repo}:{self.version.base_version}"
+        self.engine.run(image=image, *args)
+
+    def stop(self):
+        """Stop container."""
+        self.engine.stop()
 
     def exec(self, cmd):
         """Execute command on contaienr.
@@ -46,7 +59,7 @@ class RhelContainer:
         # In rhel container sometime hostname pkg missing.
         if not self.engine.is_pkg_installed("hostname"):
             self.engine.install_pkg("hostname")
-        return self.exec("hostname")
+        return self.exec("hostname").stdout
 
     @property
     def redhat_release(self):
@@ -54,34 +67,24 @@ class RhelContainer:
         return self.exec("cat /etc/redhat-release")
 
     def install(self, pkg):
-        """Install package/s on container."""
-        return self.exec(f"yum install -y {pkg}")
+        """Install package on container."""
+        return self.engine.install_pkg(pkg=pkg)
 
     def is_pkg_installed(self, pkg):
         """Check specific package already installed or not."""
-        return "not installed" not in self.exec(f"rpm -q {pkg}")
-
-    def add_file(self, filename, content, overwrite=False):
-        if not overwrite:
-            self.exec(f"rm {filename}")
-        command = [
-            self.engine,
-            "exec",
-            self.name,
-            "bash",
-            "-c",
-            f"cat >>{filename} <<EOF\n{content}\nEOF",
-        ]
-        subprocess.run(command)
+        return self.engine.is_pkg_installed(pkg=pkg)
 
     def enable_epel(self):
+        """Enable EPEL repository on container."""
         epel = EPEL_URL.format(major_ver=self.version.major)
         self.install(epel)
+
         # RHEL 7 it is recommended to also enable the optional, extras, and
         # HA repositories since EPEL packages may depend on packages from these repositories
         if self.version.major == 7:
             self.exec(
-                'subscription-manager repos --enable "rhel-*-optional-rpms" --enable "rhel-*-extras-rpms"  --enable "rhel-ha-for-rhel-*-server-rpms"'
+                'subscription-manager repos --enable "rhel-*-optional-rpms" --enable '
+                '"rhel-*-extras-rpms"  --enable "rhel-ha-for-rhel-*-server-rpms"'
             )
 
         # RHEL 8 it is required to also enable the codeready-builder-for-rhel-8-*-rpms repository since EPEL packages may depend on packages from it
@@ -90,17 +93,27 @@ class RhelContainer:
             self.exec(
                 f'subscription-manager repos --enable "codeready-builder-for-rhel-8-{arch}-rpms"'
             )
-            self.exec("dnf config-manager --set-enabled powertools")
+            # self.exec("dnf config-manager --set-enabled powertools")
 
-    def copy_to_rhel(self, rhel_path, host_path):
-        command = [self.engine, "cp", host_path, f"{self.name}:{rhel_path}"]
-        return subprocess.run(command).returncode
+    def copy_to_cont(self, host_path, cont_path):
+        """Copy file from host to container.
 
-    def copy_to_host(self, host_path, rhel_path):
-        command = [self.engine, "cp", f"{self.name}:{rhel_path}", host_path]
-        return subprocess.run(command).returncode
+        Args:
+            host_path: File path on host intended to copy.
+            cont_path: Path on container to save
+        """
+        return self.engine.copy_to_cont(host_path=host_path, cont_path=cont_path)
+
+    def copy_to_host(self, host_path, cont_path):
+        """Copy file from container to host.
+
+        Args:
+            host_path: Path on host to save
+            cont_path: File path on container intended to copy.
+        """
+        return self.engine.copy_to_host(host_path=host_path, cont_path=cont_path)
 
     def create_archive(self, hostpath="."):
-        out = self.insight_client.register(keep_archive=True)
-        archive_path = re.search("[^ ]*.tar.gz", out)[0]
-        self.copy_to_host(host_path=hostpath, rhel_path=archive_path)
+        out = self.insights_client.register(keep_archive=True)
+        archive_path = re.search("[^ ]*.tar.gz", out.stdout)[0]
+        self.copy_to_host(host_path=hostpath, cont_path=archive_path)

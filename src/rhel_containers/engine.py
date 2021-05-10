@@ -35,7 +35,7 @@ class ContCommandResult:
 class PodmanEngine:
     """Podman/Docker engine wrapper."""
 
-    def __init__(self, image, name=None, engine="auto", *args, **kwargs):
+    def __init__(self, name=None, engine="auto", *args, **kwargs):
         if engine == "auto":
             self.engine = "podman" if shutil.which("podman") else "docker"
         else:
@@ -46,7 +46,6 @@ class PodmanEngine:
             raise ValueError(
                 f"'{engine}' engine not found. Make sure it should installed on your system."
             )
-        self.image = image
         self.name = name or f"rhel-{datetime.datetime.now().strftime('%y%m%d-%H%M%S')}"
 
     def _exec(self, command):
@@ -54,9 +53,10 @@ class PodmanEngine:
         out = subprocess.run(command, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
         return ContCommandResult.from_subprocess_out(out)
 
-    def run(self, hostname=None, detach=True, env=None):
+    def run(self, image, hostname=None, detach=True, env=None):
         """run container.
         Args:
+            image: Image of rhel container
             hostname: Set container hostname
             detach: Run container in background
             env: List of environment variables to set in container
@@ -70,7 +70,7 @@ class PodmanEngine:
         if env:
             cmd.extend(["--env", " ".join(env)])
 
-        cmd.extend([self.image])
+        cmd.extend([image])
         return self._exec(cmd)
 
     def kill(self):
