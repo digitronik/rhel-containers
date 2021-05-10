@@ -28,6 +28,13 @@ class InsightsClient:
         return self.engine.add_file(self.config.insights_client.conf_path, content=conf)
 
     def register(self, disable_schedule=None, keep_archive=None, no_upload=None):
+        """Register insights-client.
+
+        Args:
+            disable_schedule: disable schedule
+            keep_archive: Keep archive while uploading
+            no_upload: don't upload data
+        """
         cmd = "insights-client --register"
         if disable_schedule:
             cmd = f"{cmd} --disable-schedule"
@@ -51,4 +58,5 @@ class InsightsClient:
 
     @property
     def version(self):
-        return self.engine.exec("insights-client --version")
+        out = self.engine.exec("insights-client --version")
+        return out.stdout
