@@ -8,9 +8,9 @@ authmethod=CERT"""
 
 class InsightsClient:
     def __init__(self, engine, config, env="qa"):
-        self.engine = engine
-        self.config = config
-        self.env = env
+        self._engine = engine
+        self._config = config
+        self._env = env
 
     def install(self, pkg="insights-client"):
         """Install insights-client packges
@@ -18,14 +18,14 @@ class InsightsClient:
         Args:
             pkg: insights-client package with specific version.
         """
-        self.engine.install_pkg(pkg)
+        self._engine.exec(f"yum install -y {pkg}")
 
     def configure(self):
-        if self.env == "prod":
+        if self._env == "prod":
             print("For prod env no need of config.")
             return
-        conf = INSIGHTS_CLIENT_CONF.format(base_url=self.config.insights_client.entrypoint)
-        return self.engine.add_file(self.config.insights_client.conf_path, content=conf)
+        conf = INSIGHTS_CLIENT_CONF.format(base_url=self._config.insights_client.entrypoint)
+        return self._engine.add_file(self._config.insights_client.conf_path, content=conf)
 
     def register(self, disable_schedule=None, keep_archive=None, no_upload=None):
         """Register insights-client.
@@ -44,19 +44,19 @@ class InsightsClient:
             cmd = f"{cmd} --no-upload"
 
         # In rhel container sometime hostname pkg missing and insights-client need this package.
-        if not self.engine.is_pkg_installed("hostname"):
-            self.engine.install_pkg("hostname")
+        if "not installed" in self._engine.exec(f"rpm -q hostname").stdout:
+            self._engine.exec("yum install -y hostname")
 
         # If insights-client not installed then installed it first.
-        if not self.engine.is_pkg_installed("insights-client"):
+        if "not installed" in self._engine.exec(f"rpm -q insights-client").stdout:
             self.install()
 
-        return self.engine.exec(cmd)
+        return self._engine.exec(cmd)
 
     def unregister(self):
-        return self.engine.exec("insights-client --unregister")
+        return self._engine.exec("insights-client --unregister")
 
     @property
     def version(self):
-        out = self.engine.exec("insights-client --version")
+        out = self._engine.exec("insights-client --version")
         return out.stdout
