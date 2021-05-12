@@ -10,7 +10,7 @@ class InsightsClient:
     def __init__(self, engine, config, env="qa"):
         self._engine = engine
         self._config = config
-        self._env = env
+        self.env = env
 
     def install(self, pkg="insights-client"):
         """Install insights-client packges
@@ -21,11 +21,16 @@ class InsightsClient:
         self._engine.exec(f"yum install -y {pkg}")
 
     def configure(self):
-        if self._env == "prod":
+        if self.env == "prod":
             print("For prod env no need of config.")
             return
-        conf = INSIGHTS_CLIENT_CONF.format(base_url=self._config.insights_client.entrypoint)
-        return self._engine.add_file(self._config.insights_client.conf_path, content=conf)
+        if self.env == "stage":
+            conf = "[insights-client]"
+            if self._config.proxy:
+                conf = f"{conf}\nproxy={self._config.proxy}"
+        else:
+            conf = INSIGHTS_CLIENT_CONF.format(base_url=self._config.base_url)
+        return self._engine.add_file(self._config.conf_path, content=conf)
 
     def register(self, disable_schedule=None, keep_archive=None, no_upload=None):
         """Register insights-client.

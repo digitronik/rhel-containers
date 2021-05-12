@@ -12,7 +12,7 @@ from rhel_containers.insights_client import InsightsClient
 from rhel_containers.subscription import Subscription
 
 EPEL_URL = "https://dl.fedoraproject.org/pub/epel/epel-release-latest-{major_ver}.noarch.rpm"
-SUPPORTED_ENV = ("ci", "qa", "prod")
+SUPPORTED_ENV = ("ci", "qa", "prod", "stage")
 SUPPORTED_ORCHESTRATION_CLI = ("kubectl", "oc")
 SUPPORTED_ENGINE_CLI = ("podman", "docker", "kubectl", "oc")
 
@@ -37,12 +37,14 @@ class RhelContainer:
             engine=self.engine,
             username=kwargs.get("username"),
             password=kwargs.get("password"),
-            config=self.config,
+            config=self.config.subscription,
             env=self.env,
         )
 
         # Insights-client
-        self.insights_client = InsightsClient(engine=self.engine, config=self.config, env=self.env)
+        self.insights_client = InsightsClient(
+            engine=self.engine, config=self.config.insights_client, env=self.env
+        )
 
         # check for engine
         assert (
