@@ -2,19 +2,23 @@ import datetime
 import re
 import shutil
 import subprocess
+from pathlib import Path
 
 from packaging import version
 from rhel_containers.config import load_config
+from rhel_containers.engine import OpenshiftEngine
 from rhel_containers.engine import PodmanEngine
 from rhel_containers.insights_client import InsightsClient
 from rhel_containers.subscription import Subscription
 
 EPEL_URL = "https://dl.fedoraproject.org/pub/epel/epel-release-latest-{major_ver}.noarch.rpm"
 SUPPORTED_ENV = ("ci", "qa", "prod")
+SUPPORTED_ORCHESTRATION_CLI = ("kubectl", "oc")
+SUPPORTED_ENGINE_CLI = ("podman", "docker", "kubectl", "oc")
 
 
 class RhelContainer:
-    def __init__(self, engine_name="auto", release=8.3, name=None, env="qa", *args, **kwargs):
+    def __init__(self, engine_name="podman", release=8.3, name=None, env="qa", *args, **kwargs):
         self.engine_name = engine_name
         self.version = version.parse(str(release))
         self.name = name or f"rhel-{datetime.datetime.now().strftime('%y%m%d-%H%M%S')}"
@@ -22,7 +26,11 @@ class RhelContainer:
         self.config = load_config(env=self.env, extra_conf=kwargs.get("config"))
 
         # Engine
-        self.engine = PodmanEngine(name=self.name, engine=engine_name)
+        self.engine = (
+            OpenshiftEngine(name=self.name, engine=engine_name)
+            if engine_name in SUPPORTED_ORCHESTRATION_CLI
+            else PodmanEngine(name=self.name, engine=engine_name)
+        )
 
         # Subscription
         self.subscription = Subscription(
@@ -36,21 +44,26 @@ class RhelContainer:
         # Insights-client
         self.insights_client = InsightsClient(engine=self.engine, config=self.config, env=self.env)
 
+        # check for engine
+        assert (
+            self.engine_name in SUPPORTED_ENGINE_CLI
+        ), f"'{self.engine_name}' not supported. Supported CLI are {SUPPORTED_ENGINE_CLI}"
+
         # check for env
         assert (
             self.env in SUPPORTED_ENV
         ), f"'{self.env}' not supported. Supported env are {SUPPORTED_ENV}"
 
-    def start(self, hostname=None, detach=True, env=None):
+    def start(self, hostname=None, envs=None, *args, **kwargs):
         """Start container.
+
         Args:
             hostname: Set container hostname
-            detach: Run container in background
             env: List of environment variables to set in container
         """
         repo = self.config.repositories.get(self.version.major)
         image = f"{repo}:{self.version.base_version}"
-        return self.engine.run(image=image, hostname=hostname, detach=detach, env=env)
+        return self.engine.run(image=image, hostname=hostname, envs=envs, *args, **kwargs)
 
     def stop(self):
         """Stop container."""
@@ -68,8 +81,8 @@ class RhelContainer:
     def hostname(self):
         """It will give you current hostname."""
         # In rhel container sometime hostname pkg missing.
-        if not self.engine.is_pkg_installed("hostname"):
-            self.engine.install_pkg("hostname")
+        if not self.is_pkg_installed("hostname"):
+            self.install("hostname")
         return self.exec("hostname").stdout
 
     @property
@@ -84,15 +97,15 @@ class RhelContainer:
         Args:
             pkg: Package to install
         """
-        return self.engine.install_pkg(pkg=pkg)
+        return self.engine.exec(f"yum install -y {pkg}")
 
     def is_pkg_installed(self, pkg):
         """Check specific package already installed or not.
 
         Args:
-            pkg: package name
+            pkg: Package, which you want to verify.
         """
-        return self.engine.is_pkg_installed(pkg=pkg)
+        return "not installed" not in self.engine.exec(f"rpm -q {pkg}").stdout
 
     def enable_epel(self):
         """Enable EPEL repository on container."""
@@ -109,9 +122,9 @@ class RhelContainer:
 
         # RHEL 8 it is required to also enable the codeready-builder-for-rhel-8-*-rpms repository since EPEL packages may depend on packages from it
         if self.version.major == 8:
-            arch = self.exec("/bin/arch")
+            arch = self.exec("/bin/arch").stdout
             self.exec(
-                f'subscription-manager repos --enable "codeready-builder-for-rhel-8-{arch}-rpms"'
+                f"subscription-manager repos --enable codeready-builder-for-rhel-8-{arch}-rpms"
             )
             # self.exec("dnf config-manager --set-enabled powertools")
 
@@ -122,23 +135,41 @@ class RhelContainer:
             host_path: File path on host intended to copy.
             cont_path: Path on container to save
         """
-        return self.engine.copy_to_cont(host_path=host_path, cont_path=cont_path)
+        return self.engine.cp(source=host_path, dest=f"{self.name}:{cont_path}")
 
-    def copy_to_host(self, cont_path, host_path):
+    def copy_to_host(self, cont_path, host_path="."):
         """Copy file from container to host.
 
         Args:
             host_path: Path on host to save
             cont_path: File path on container intended to copy.
         """
-        return self.engine.copy_to_host(host_path=host_path, cont_path=cont_path)
+        return self.engine.cp(source=f"{self.name}:{cont_path}", dest=host_path)
 
-    def create_archive(self, hostpath="."):
+    def create_archive(self, path="."):
         """Create archive of container.
 
         Args:
             hostpath: Path to save
         """
+        host_path = Path(path)
         out = self.insights_client.register(keep_archive=True)
-        archive_path = re.search("[^ ]*.tar.gz", out.stdout)[0]
-        return self.copy_to_host(host_path=hostpath, cont_path=archive_path)
+        archive_path = Path(re.search("[^ ]*.tar.gz", out.stdout)[0])
+        if host_path.is_dir() and host_path.exists():
+            host_path = host_path.joinpath(archive_path.name)
+        return self.copy_to_host(
+            host_path=host_path.absolute().__str__(), cont_path=archive_path.absolute().__str__()
+        )
+
+    def setup(self, *args, **kwargs):
+        if "subscribe" in args:
+            self.subscription.register()
+
+        if "insights-client" in args:
+            self.subscription.register()
+            self.insights_client.install()
+            self.insights_client.configure()
+            return self.insights_client.register()
+
+        if "ansible" in args:
+            self.install("ansible")
