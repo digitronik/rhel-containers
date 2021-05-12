@@ -8,8 +8,8 @@ It's not package yet as POC. You can install it with source
 ```shell
 git cone git@github.com:digitronik/rhel-containers.git
 cd rhel-containers
-python3 -m venv .venv
-source .venv/bin/activate
+python3 -m venv .env
+source .env/bin/activate
 pip install -e .    # editable
 ```
 
@@ -17,21 +17,25 @@ pip install -e .    # editable
 To get up and running, you can utilize a local config file (`~/.config/rhel_cont.yaml`).
 `rhel-containers` ships with a [default config](src/rhel_containers/conf/conf.yaml).
 For subscription and insights-client registration you can overwrite configuration by creating file `~/.config/rhel_cont.yaml`.
+`default` session holds default configuration you can overwrite values in specific session.
 
 Example:
 ```shell
-qa:
+default:
   rhel_containers:
-    username: foo
-    password: bar
-ci:
-  rhel_containers:
-    username: foo
-    password: bar
+    subscription:
+      # eg. creds common for all env except prod else overwrite in each env.
+      username: foo
+      password: bar
 prod:
   rhel_containers:
-    username: foo
-    password: bar
+    subscription:
+      username: foo_prod
+      password: bar_prod
+stage:
+  rhel_containers:
+    insights_client:
+      proxy: foo.com
 ```
 **Note:** For now, credentials are in plain text.
 
@@ -42,73 +46,70 @@ Python 3.9.2 (default, Feb 20 2021, 00:00:00)
 
 In [1]: from rhel_containers import RhelContainer
 
-In [2]: rc = RhelContainer(release=8.3, env='ci')
+In [2]: rc = RhelContainer(engine_name="podman", release=8.3, env='ci')
 
-In [3]: rc.start()
-Out[3]: ContCommandResult(exit_status=0)
+In [3]: # engine can be [podman, docker, kubectl, oc]. release point to which version of rhel, curretnly, rhel7 and rhel8 supported.
 
-In [4]: rc.exec("ls").stdout
-Out[4]: 'bin\nboot\ndev\netc\nhome\nlib\nlib64\nlost+found\nmedia\nmnt\nopt\nproc\nroot\nrun\nsbin\nsrv\nsys\ntmp\nusr\nvar'
+In [4]: rc.start() # it will run rhel-8.3 container.
+Out[4]: ContCommandResult(exit_status=0)
 
-In [5]: rc.subscription.list
+In [5]: rc.subscription.register() # subscribe system
 Out[5]: ContCommandResult(exit_status=0)
 
-In [6]: rc.subscription.register().stdout
-Out[6]: 'Registering to: subscription.rhsm.qa.redhat.com:443/subscription\nThe system has been registered with ID: 1fcb339c-9f6b-4321-869d-bb05b207d172\nThe registered system name is: 8b5af8cd68de\nInstalled Product Current Status:\nProduct Name: Red Hat Enterprise Linux for x86_64\nStatus:       Subscribed'
+In [6]: rc.subscription.status
+Out[6]: ContCommandResult(exit_status=0)
 
-In [7]: rc.insights_client.install()
+In [7]: rc.subscription.status.stdout
+Out[7]: '+-------------------------------------------+\n   System Status Details\n+-------------------------------------------+\nOverall Status: Current\n\nSystem Purpose Status: Not Specified'
 
-In [8]: rc.insights_client.configure()
+In [8]: rc.insights_client.install() # Install insights-client
 
-In [9]: rc.exec("cat /etc/insights-client/insights-client.conf").stdout
-Out[9]: '[insights-client]\nbase_url= ci.cloud.redhat.com/api\ncert_verify=False\nauto_config=False\nlegacy_upload=False\nauthmethod=CERT'
+In [9]: rc.is_pkg_installed("insights-client") # check pkg installed or not
+Out[9]: True
 
-In [10]: rc.insights_client.register().stdout
+In [10]: rc.insights_client.configure() # configure insights-client for specific env.
 
-Out[10]: 'Unable to fetch egg url. Defaulting to /release\nAutomatic scheduling for Insights has been enabled.\nStarting to collect Insights data for 8b5af8cd68de\nUploading Insights data.\nSuccessfully uploaded report for 8b5af8cd68de.\nView the Red Hat Insights console at https://cloud.redhat.com/insights/'
+In [11]: rc.insights_client.register() # register system
+Out[11]: ContCommandResult(exit_status=0)
 
-In [11]: rc.is_pkg_installed("insights-client")
-Out[11]: True
+In [12]: rc.hostname # it will give hostname of container and with same you can check your system
+    ...:  in insights.
+Out[12]: '4debc82a1b9d'
 
-In [12]: rc.install("git")
-Out[12]: ContCommandResult(exit_status=0)
+In [13]: rc.setup("insights-client") # It will do all above steps for you like subcription, insight client installation and registration.
 
-In [13]: rc.is_pkg_installed("git")
-Out[13]: True
+In [14]: rc.enable_epel() # enable EPEL repo
 
-In [14]: rc.hostname
-Out[14]: '8b5af8cd68de'
+In [15]: rc.install("weechat") # installing package from EPEL repo
+Out[15]: ContCommandResult(exit_status=0)
 
-In [15]: rc.enable_epel()
+In [16]: rc.is_pkg_installed("weechat")
+Out[16]: True
 
-In [16]: rc.install("weechat")
-Out[16]: ContCommandResult(exit_status=0)
-
-In [17]: rc.is_pkg_installed("weechat")
-Out[17]: True
+In [17]: rm -rf insights-9d90211a6956-20210512080327.tar.gz
 
 In [18]: ls
 LICENSE  README.md  setup.cfg  setup.py  src/  tests/
 
-In [19]: rc.copy_to_cont(host_path="README.md", cont_path="/README.md")
+In [19]: rc.create_archive()
 Out[19]: ContCommandResult(exit_status=0)
 
-In [20]: rc.exec("cat /README.md").stdout
-Out[20]: '<h1 align="center"> rhel-containers </h1>\n<h2 align="center"> RHEL containers for Insight testing </h2>\n\nNote: *In progress* (POC)'
+In [20]: ls
+insights-4debc82a1b9d-20210512161946.tar.gz  README.md  setup.py  tests/
+LICENSE                                      setup.cfg  src/
 
-In [21]: rc.create_archive()
+In [21]: rc.copy_to_cont(host_path="README.md", cont_path="/README.md") # copy some file to system
 Out[21]: ContCommandResult(exit_status=0)
 
-In [22]: ls
-insights-8b5af8cd68de-20210510170726.tar.gz  LICENSE  README.md  setup.cfg  setup.py  src/  tests/
+In [21]: rc.exec("cat /README.md").stdout	# execute some command on system
+Out[21]: '<h1 align="center"> rhel-containers </h1>\n<h2 align="center"> RHEL containers for Insight testing </h2>\n\nNote: *In progress* (POC)'
 
-In [23]: rc.stop()
-Out[23]: ContCommandResult(exit_status=0)
 
-In [24]: exit
+In [22]: rc.stop() # stop container :)
+Out[22]: ContCommandResult(exit_status=0)
 ```
 
 ### WIP
-- [] Support to `Openshift`
+- [x] Support to `Openshift`
 - [] Integration with `iqe`
 - [] CLI so everyone can use other than qe
