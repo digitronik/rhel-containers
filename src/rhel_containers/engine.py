@@ -1,4 +1,5 @@
 import datetime
+import json
 import shutil
 import subprocess
 
@@ -110,6 +111,12 @@ class PodmanEngine:
         ]
         self._exec(command=command)
 
+    @property
+    def status(self):
+        command = [self.engine, "inspect", "--format", "{{.State.Status}}", self.name]
+        out = self._exec(command=command)
+        return out.stdout.title()
+
 
 class OpenshiftEngine:
     """Openshift/k8s engine wrapper."""
@@ -185,3 +192,32 @@ class OpenshiftEngine:
             f"cat >>{filename} <<EOF\n{content}\nEOF",
         ]
         self._exec(command=command)
+
+    def get_json(self, restype, name=None, label=None, namespace=None):
+        """
+        Get json for resource type/name/label.
+        If name is None all resources of this type are returned
+        If label is not provided, then "oc get" will not be filtered on label
+        """
+        command = [self.engine, "get", restype]
+        if name:
+            command.append(name)
+        if label:
+            command.extend(["-l", label])
+        if namespace:
+            command.extend(["-n", namespace])
+
+        command.extend(["-o", "json"])
+        out = self._exec(command=command)
+
+        if out.exit_status != 0:
+            return {}
+        try:
+            return json.loads(out.stdout)
+        except ValueError:
+            return {}
+
+    @property
+    def status(self):
+        out = self.get_json(restype="pods", name=self.name)
+        return out["status"]["phase"]

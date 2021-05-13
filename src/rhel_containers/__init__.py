@@ -10,6 +10,8 @@ from rhel_containers.engine import OpenshiftEngine
 from rhel_containers.engine import PodmanEngine
 from rhel_containers.insights_client import InsightsClient
 from rhel_containers.subscription import Subscription
+from wait_for import TimedOutError
+from wait_for import wait_for
 
 EPEL_URL = "https://dl.fedoraproject.org/pub/epel/epel-release-latest-{major_ver}.noarch.rpm"
 SUPPORTED_ENV = ("ci", "qa", "prod", "stage")
@@ -56,23 +58,35 @@ class RhelContainer:
             self.env in SUPPORTED_ENV
         ), f"'{self.env}' not supported. Supported env are {SUPPORTED_ENV}"
 
-    def start(self, hostname=None, envs=None, *args, **kwargs):
+    def start(self, hostname=None, envs=None, wait=True, *args, **kwargs):
         """Start container.
 
         Args:
             hostname: Set container hostname
             env: List of environment variables to set in container
+            wait: wait for container/pod up and running.
         """
         repo = self.config.repositories.get(self.version.major)
         image = f"{repo}:{self.version.base_version}"
-        return self.engine.run(image=image, hostname=hostname, envs=envs, *args, **kwargs)
+        out = self.engine.run(image=image, hostname=hostname, envs=envs, *args, **kwargs)
+        if wait:
+            try:
+                wait_for(lambda: self.status == "Running", timeout="60s")
+            except TimedOutError:
+                print("Pod are not Running.")
+        return out
 
     def stop(self):
         """Stop container."""
         return self.engine.stop()
 
+    @property
+    def status(self):
+        """Return status of container."""
+        return self.engine.status
+
     def exec(self, cmd):
-        """Execute command on contaienr.
+        """Execute command on container.
 
         Args:
             cmd: command string
