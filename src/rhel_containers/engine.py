@@ -113,8 +113,11 @@ class PodmanEngine:
 
     @property
     def status(self):
+        """Return status of container."""
         command = [self.engine, "inspect", "--format", "{{.State.Status}}", self.name]
         out = self._exec(command=command)
+        if out.exit_status != 0:
+            return f"{self.name} unavailable."
         return out.stdout.title()
 
 
@@ -147,13 +150,12 @@ class OpenshiftEngine:
         """
         cmd = [self.engine, "run", self.name]
 
-        if hostname:
-            raise ValueError("TODO: Support for setting hostname to pod.")
-
         if envs:
             cmd.extend([f"--env='{k}={v}'" for k, v in envs.items()])
 
         cmd.extend([f"--image={image}"])
+        if hostname:
+            cmd.extend([f"--overrides={{'spec': {{'hostname': '{hostname}'}}"])
         return self._exec(cmd)
 
     def stop(self):
@@ -219,5 +221,8 @@ class OpenshiftEngine:
 
     @property
     def status(self):
+        """Return status of pod."""
         out = self.get_json(restype="pods", name=self.name)
+        if not out:
+            return f"{self.name} unavailable."
         return out["status"]["phase"]

@@ -20,6 +20,11 @@ class InsightsClient:
         """
         self._engine.exec(f"yum install -y {pkg}")
 
+    @property
+    def status(self):
+        out = self._engine.exec("insights-client --status")
+        return out.stdout
+
     def configure(self):
         if self.env == "prod":
             print("For prod env no need of config.")
@@ -65,3 +70,6 @@ class InsightsClient:
     def version(self):
         out = self._engine.exec("insights-client --version")
         return out.stdout
+
+    def test_connection(self):
+        return rc._engine.exec("insights-client --test-connection")
