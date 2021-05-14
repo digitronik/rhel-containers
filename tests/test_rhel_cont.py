@@ -1,12 +1,12 @@
 import pytest
 from rhel_containers import RhelContainer
 
-ENGINES =  ["podman", "kubectl"]
+ENGINES = ["podman", "kubectl"]
 
 
 @pytest.fixture(params=ENGINES, scope="module")
 def rc(request):
-    cont = RhelContainer(engine_name=request.param, release=8.3, env='ci')
+    cont = RhelContainer(engine_name=request.param, release=8.3, env="ci")
     cont.start()
     yield cont
     cont.stop()
@@ -22,7 +22,7 @@ def rc_subscribed(rc):
 
 @pytest.mark.parametrize("engine", ENGINES)
 def test_start_stop(engine):
-    rc = RhelContainer(engine_name=engine, release=8.3, env='ci')
+    rc = RhelContainer(engine_name=engine, release=8.3, env="ci")
     rc.start()
     assert rc.status == "Running"
     rc.stop()
@@ -39,7 +39,7 @@ def test_subscription(rc):
     assert "Subscribed" in out.stdout
 
     out = rc.subscription.refresh()
-    assert out.stdout == 'All local data refreshed'
+    assert out.stdout == "All local data refreshed"
 
     out = rc.subscription.unregister()
     assert "System has been unregistered" in out.stdout
