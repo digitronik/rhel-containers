@@ -162,6 +162,9 @@ class RhelContainer:
         """
         return self.engine.cp(source=f"{self.name}:{cont_path}", dest=host_path)
 
+    def add_file(self, filename, content, overwrite=False):
+        return self.engine.add_file(filename=filename, content=content, overwrite=overwrite)
+
     def create_archive(self, path="."):
         """Create archive of container.
 
@@ -182,10 +185,13 @@ class RhelContainer:
             self.subscription.register()
 
         if "insights-client" in args:
-            self.subscription.register()
-            self.insights_client.install()
-            self.insights_client.configure()
-            return self.insights_client.register()
-
-        if "ansible" in args:
-            self.install("ansible")
+            for k, v in [
+                ("subscription", "register"),
+                ("insights_client", "install"),
+                ("insights_client", "configure"),
+                ("insights_client", "register"),
+            ]:
+                out = getattr(getattr(self, k), v)()
+                if out.exit_status != 0:
+                    return out
+            return out

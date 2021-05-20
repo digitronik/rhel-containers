@@ -85,7 +85,7 @@ class PodmanEngine:
         Args:
             cmd: command string
         """
-        command = [self.engine, "exec", self.name,] + cmd.split()
+        command = [self.engine, "exec", self.name, "bash", "-c", cmd]
         return self._exec(command)
 
     def cp(self, source, dest):
@@ -101,15 +101,7 @@ class PodmanEngine:
     def add_file(self, filename, content, overwrite=False):
         if not overwrite:
             self.exec(f"rm {filename}")
-        command = [
-            self.engine,
-            "exec",
-            self.name,
-            "bash",
-            "-c",
-            f"cat >>{filename} <<EOF\n{content}\nEOF",
-        ]
-        self._exec(command=command)
+        return self.exec(f"cat >>{filename} <<EOF\n{content}\nEOF")
 
     @property
     def status(self):
@@ -168,7 +160,7 @@ class OpenshiftEngine:
         Args:
             cmd: command string
         """
-        command = [self.engine, "exec", self.name, "--"] + cmd.split()
+        command = [self.engine, "exec", self.name, "--", "bash", "-c", cmd]
         return self._exec(command)
 
     def cp(self, source, dest):
@@ -184,16 +176,7 @@ class OpenshiftEngine:
     def add_file(self, filename, content, overwrite=False):
         if not overwrite:
             self.exec(f"rm {filename}")
-        command = [
-            self.engine,
-            "exec",
-            self.name,
-            "--",
-            "bash",
-            "-c",
-            f"cat >>{filename} <<EOF\n{content}\nEOF",
-        ]
-        self._exec(command=command)
+        return self.exec(f"cat >>{filename} <<EOF\n{content}\nEOF")
 
     def get_json(self, restype, name=None, label=None, namespace=None):
         """

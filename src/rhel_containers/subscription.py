@@ -17,7 +17,7 @@ class Subscription:
             force: force subscribed
         """
         auto_attach = self._config.auto_attach if auto_attach is None else auto_attach
-        force = self._config.force if auto_attach is None else force
+        force = self._config.force if force is None else force
 
         if not (self._config.username and self._config.password):
             raise ValueError("Please provide credentials to subscribe.")

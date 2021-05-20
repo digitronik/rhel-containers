@@ -18,7 +18,7 @@ class InsightsClient:
         Args:
             pkg: insights-client package with specific version.
         """
-        self._engine.exec(f"yum install -y {pkg}")
+        return self._engine.exec(f"yum install -y {pkg}")
 
     @property
     def status(self):
