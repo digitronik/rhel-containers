@@ -1,4 +1,7 @@
 # RHEL Subscription management.
+import logging
+
+logger = logging.getLogger(__name__)
 
 
 class Subscription:
@@ -16,6 +19,7 @@ class Subscription:
             auto_attach: auto attach pool
             force: force subscribed
         """
+        logger.info(f"Subscribing system {self._engine.name} to {self._config.serverurl}")
         auto_attach = self._config.auto_attach if auto_attach is None else auto_attach
         force = self._config.force if force is None else force
 
@@ -34,7 +38,13 @@ class Subscription:
         if force:
             cmd = f"{cmd} --force"
 
-        return self._engine.exec(cmd)
+        out = self._engine.exec(cmd)
+        if out.exit_status != 0:
+            logger.error(f"Fail to subscribe system {self._engine.name}: {out.stderr}")
+        else:
+            logger.info(f"Successfully subscribed.")
+
+        return out
 
     def attach(self, pool=None):
         """Attach pool

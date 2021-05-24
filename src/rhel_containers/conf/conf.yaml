@@ -15,7 +15,6 @@ default:
       conf_path: /etc/insights-client/insights-client.conf
       base_url:
       proxy:
-
 qa:
   RHEL_CONTAINERS:
     subscription:
