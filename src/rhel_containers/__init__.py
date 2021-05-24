@@ -1,11 +1,12 @@
-import datetime
+import logging
+import random
 import re
-import shutil
-import subprocess
+import string
 from pathlib import Path
 
 from packaging import version
 from rhel_containers.config import load_config
+from rhel_containers.engine import ContCommandResult
 from rhel_containers.engine import OpenshiftEngine
 from rhel_containers.engine import PodmanEngine
 from rhel_containers.insights_client import InsightsClient
@@ -18,12 +19,14 @@ SUPPORTED_ENV = ("ci", "qa", "prod", "stage")
 SUPPORTED_ORCHESTRATION_CLI = ("kubectl", "oc")
 SUPPORTED_ENGINE_CLI = ("podman", "docker", "kubectl", "oc")
 
+logger = logging.getLogger(__name__)
+
 
 class RhelContainer:
     def __init__(self, engine_name="podman", release=8.3, name=None, env="qa", *args, **kwargs):
         self.engine_name = engine_name
         self.version = version.parse(str(release))
-        self.name = name or f"rhel-{datetime.datetime.now().strftime('%y%m%d-%H%M%S')}"
+        self.name = name or f"rhel-{''.join(random.choice(string.ascii_letters) for _ in range(5))}"
         self.env = env
         self.config = load_config(env=self.env, extra_conf=kwargs.get("config"))
 
@@ -36,11 +39,7 @@ class RhelContainer:
 
         # Subscription
         self.subscription = Subscription(
-            engine=self.engine,
-            username=kwargs.get("username"),
-            password=kwargs.get("password"),
-            config=self.config.subscription,
-            env=self.env,
+            engine=self.engine, config=self.config.subscription, env=self.env,
         )
 
         # Insights-client
@@ -66,6 +65,7 @@ class RhelContainer:
             env: List of environment variables to set in container
             wait: wait for container/pod up and running.
         """
+        logger.info(f"Provisioning RHEL-{self.version.base_version} container")
         repo = self.config.repositories.get(self.version.major)
         image = f"{repo}:{self.version.base_version}"
         out = self.engine.run(image=image, hostname=hostname, envs=envs, *args, **kwargs)
@@ -74,10 +74,16 @@ class RhelContainer:
                 wait_for(lambda: self.status == "Running", timeout="60s")
             except TimedOutError:
                 print("Pod are not Running.")
+
+        if out.exit_status == 0:
+            logger.info("Successfully provisioned container")
+        else:
+            logger.error(f"Fail to provision container: {out.stderr}")
         return out
 
     def stop(self):
         """Stop container."""
+        logger.info("Stopping container")
         return self.engine.stop()
 
     @property
@@ -102,6 +108,10 @@ class RhelContainer:
         return self.exec("hostname").stdout
 
     @property
+    def pkg_mng(self):
+        return "dnf" if self.version.major == 8 else "yum"
+
+    @property
     def redhat_release(self):
         """It will return redhat-release"""
         out = self.exec("cat /etc/redhat-release")
@@ -113,7 +123,15 @@ class RhelContainer:
         Args:
             pkg: Package to install
         """
-        return self.engine.exec(f"yum install -y {pkg}")
+        return self.engine.exec(f"{self.pkg_mng} install -y {pkg}")
+
+    def remove(self, pkg):
+        """remove package on container.
+
+        Args:
+            pkg: Package to remove
+        """
+        return self.engine.exec(f"{self.pkg_mng} remove -y {pkg}")
 
     def is_pkg_installed(self, pkg):
         """Check specific package already installed or not.
@@ -121,7 +139,8 @@ class RhelContainer:
         Args:
             pkg: Package, which you want to verify.
         """
-        return "not installed" not in self.engine.exec(f"rpm -q {pkg}").stdout
+        out = self.engine.exec(f"which {pkg}")
+        return not out.exit_status
 
     def enable_epel(self):
         """Enable EPEL repository on container."""
@@ -180,9 +199,46 @@ class RhelContainer:
             host_path=host_path.absolute().__str__(), cont_path=archive_path.absolute().__str__()
         )
 
+    def setup_python(self, python="3"):
+        """Install python3"""
+        if self.is_pkg_installed(f"python{python}"):
+            logger.info(f"python{python} already installed.")
+        else:
+            self.install(f"python{python}")
+            logger.info(f"Successfully installed python{python}")
+        out = self.exec(f"python{python} -m pip install --upgrade pip setuptools wheel")
+        if out.exit_status == 0:
+            logger.info(f"Successfully setup python{python}")
+        else:
+            logger.error(f"Fail to setup python{python} >> {out.stderr}")
+        return out
+
+    def setup_ansible(self, setup_ssh=True):
+        """Install ansible and setup ansible"""
+        # check for python as we are going to use pip for installation
+        logger.info("Started ansible setup")
+        if self.is_pkg_installed("ansible"):
+            logger.info(f"ansible already installed.")
+            out = ContCommandResult(exit_status=0, stdout="ansible already installed")
+        else:
+            self.setup_python()
+            if setup_ssh:
+                self.install("openssh-server ed openssh-clients tlog glibc-langpack-en")
+                self.exec("systemctl enable sshd")
+                self.exec(
+                    "sed -i 's/#Port.*$/Port 22/' /etc/ssh/sshd_config && chmod 775 /var/run && rm -f /var/run/nologin"
+                )
+            out = self.exec(
+                "pip3 install --trusted-host pypi.org --trusted-host "
+                "files.pythonhosted.org ansible"
+            )
+            logger.info("Successfully setup ansible")
+        return out
+
     def setup(self, *args, **kwargs):
         if "subscribe" in args:
-            self.subscription.register()
+            out = self.subscription.register()
+            return out
 
         if "insights-client" in args:
             for k, v in [

@@ -1,7 +1,10 @@
 import datetime
 import json
+import logging
 import shutil
 import subprocess
+
+logger = logging.getLogger(__name__)
 
 
 class ContCommandResult:
@@ -19,9 +22,8 @@ class ContCommandResult:
         stderr = sub_out.stderr.decode().strip() if sub_out.stderr else ""
         command = " ".join(sub_out.args)
 
-        # TODO: Add logging
         if sub_out.returncode != 0 and stderr:
-            print(f"Error: {command} >> {stderr}")
+            logger.warning(f"Error: {command} >> {stdout} >> {stderr}")
 
         return cls(exit_status=sub_out.returncode, stdout=stdout, stderr=stderr, command=command,)
 
@@ -86,6 +88,7 @@ class PodmanEngine:
             cmd: command string
         """
         command = [self.engine, "exec", self.name, "bash", "-c", cmd]
+        logger.info(f"Executing '{cmd}'")
         return self._exec(command)
 
     def cp(self, source, dest):
@@ -99,8 +102,9 @@ class PodmanEngine:
         return self._exec(command)
 
     def add_file(self, filename, content, overwrite=False):
-        if not overwrite:
-            self.exec(f"rm {filename}")
+        if overwrite:
+            if self.exec(f"[ -f {filename} ]").exit_status == 0:
+                self.exec(f"rm {filename}")
         return self.exec(f"cat >>{filename} <<EOF\n{content}\nEOF")
 
     @property
@@ -161,6 +165,7 @@ class OpenshiftEngine:
             cmd: command string
         """
         command = [self.engine, "exec", self.name, "--", "bash", "-c", cmd]
+        logger.info(f"Executing: '{cmd}'")
         return self._exec(command)
 
     def cp(self, source, dest):
@@ -174,8 +179,9 @@ class OpenshiftEngine:
         return self._exec(command)
 
     def add_file(self, filename, content, overwrite=False):
-        if not overwrite:
-            self.exec(f"rm {filename}")
+        if overwrite:
+            if self.exec(f"[ -f {filename} ]").exit_status == 0:
+                self.exec(f"rm {filename}")
         return self.exec(f"cat >>{filename} <<EOF\n{content}\nEOF")
 
     def get_json(self, restype, name=None, label=None, namespace=None):
