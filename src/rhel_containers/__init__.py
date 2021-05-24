@@ -26,7 +26,7 @@ class RhelContainer:
     def __init__(self, engine_name="podman", release=8.3, name=None, env="qa", *args, **kwargs):
         self.engine_name = engine_name
         self.version = version.parse(str(release))
-        self.name = name or f"rhel-{''.join(random.choice(string.ascii_letters) for _ in range(5))}"
+        self.name = name or f"rhel-{''.join(random.choice(string.ascii_letters).lower() for _ in range(5))}"
         self.env = env
         self.config = load_config(env=self.env, extra_conf=kwargs.get("config"))
 

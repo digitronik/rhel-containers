@@ -43,7 +43,7 @@ class InsightsClient:
                 conf = f"{conf}\nproxy={self._config.proxy}"
         else:
             conf = INSIGHTS_CLIENT_CONF.format(base_url=self._config.base_url)
-        out = self._engine.add_file(self._config.conf_path, content=conf)
+        out = self._engine.add_file(self._config.conf_path, content=conf, overwrite=True)
 
         if out.exit_status != 0:
             logger.error(f"Fail to configure insights-client for env '{self.env}'\n {out.stderr}")
