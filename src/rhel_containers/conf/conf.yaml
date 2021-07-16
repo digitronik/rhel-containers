@@ -1,6 +1,7 @@
 default:
   RHEL_CONTAINERS:
     repositories:
+      6: "registry.access.redhat.com/rhel6-init"
       7: "registry.access.redhat.com/ubi7/ubi-init"
       8: "registry.access.redhat.com/ubi8/ubi-init"
     subscription:
