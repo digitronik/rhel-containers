@@ -1,5 +1,5 @@
 default:
-  RHEL_CONTAINERS:
+  rhel_containers:
     repositories:
       7: "registry.access.redhat.com/ubi7/ubi-init"
       8: "registry.access.redhat.com/ubi8/ubi-init"
@@ -16,7 +16,7 @@ default:
       base_url:
       proxy:
 qa:
-  RHEL_CONTAINERS:
+  rhel_containers:
     subscription:
       serverurl: subscription.rhsm.qa.redhat.com
       baseurl: http://cdn.redhat.com/
@@ -24,7 +24,7 @@ qa:
       base_url: qa.cloud.redhat.com/api
 
 ci:
-  RHEL_CONTAINERS:
+  rhel_containers:
     subscription:
       serverurl: subscription.rhsm.qa.redhat.com
       baseurl: http://cdn.redhat.com/
@@ -32,6 +32,6 @@ ci:
       base_url: ci.cloud.redhat.com/api
 
 stage:
-  RHEL_CONTAINERS:
+  rhel_containers:
     subscription:
       serverurl: "subscription.rhsm.stage.redhat.com"
