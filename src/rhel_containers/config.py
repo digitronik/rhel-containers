@@ -48,4 +48,4 @@ def load_config(env, extra_conf=None):
     # for iqe testing, we can pass extra_conf.
     if extra_conf:
         conf = merge(conf, extra_conf)
-    return Box(conf).rhel_containers
+    return Box(conf).RHEL_CONTAINERS

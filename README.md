@@ -6,7 +6,7 @@ Note: *In progress* (POC)
 ### Installation
 It's not package yet as POC. You can install it with source
 ```shell
-git cone git@github.com:digitronik/rhel-containers.git
+git clone git@github.com:digitronik/rhel-containers.git
 cd rhel-containers
 python3 -m venv .env
 source .env/bin/activate
