@@ -12,7 +12,7 @@ class Subscription:
         self._config = config
         self._env = env
 
-    def register(self, auto_attach=None, force=None):
+    def register(self, auto_attach=True, force=True):
         """Subscribed system
 
         Args:
