@@ -12,7 +12,12 @@ class RhelContainerException(Exception):
         stdout = sub_out.stdout.decode().strip() if sub_out.stdout else ""
         stderr = sub_out.stderr.decode().strip() if sub_out.stderr else ""
         command = " ".join(sub_out.args)
-        return cls(msg=msg, stdout=stdout, stderr=stderr, command=command,)
+        return cls(
+            msg=msg,
+            stdout=stdout,
+            stderr=stderr,
+            command=command,
+        )
 
     def __str__(self):
         return f"{self.msg}: \n{self.command} -> \n{self.stderr}  \n{self.stdout}"

@@ -4,6 +4,8 @@ import logging
 import shutil
 import subprocess
 
+from packaging import version
+
 logger = logging.getLogger(__name__)
 
 
@@ -25,7 +27,12 @@ class ContCommandResult:
         if sub_out.returncode != 0 and stderr:
             logger.warning(f"Error: {command} >> {stdout} >> {stderr}")
 
-        return cls(exit_status=sub_out.returncode, stdout=stdout, stderr=stderr, command=command,)
+        return cls(
+            exit_status=sub_out.returncode,
+            stdout=stdout,
+            stderr=stderr,
+            command=command,
+        )
 
     def __repr__(self):
         return f"ContCommandResult(exit_status={self.exit_status})"
@@ -66,7 +73,12 @@ class PodmanEngine:
         if envs:
             cmd.extend(["--env", " ".join(envs)])
 
-        cmd.extend([image])
+        if version.parse(image.split(":")[-1]).major == 6:
+            # hack for rhel 6 images
+            cmd.extend(["-it", image, "sh"])
+        else:
+            cmd.extend([image])
+
         return self._exec(cmd)
 
     def kill(self):
