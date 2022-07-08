@@ -25,7 +25,8 @@ logger = logging.getLogger(__name__)
 class RhelContainer:
     def __init__(self, engine_name="podman", release=8.3, name=None, env="qa", *args, **kwargs):
         self.engine_name = engine_name
-        self.version = version.parse(str(release))
+        self.release = str(release)
+        self.version = version.parse(self.release)
         self.name = name or f"rhel-{''.join(random.choice(string.ascii_letters).lower() for _ in range(5))}"
         self.env = env
         self.config = load_config(env=self.env, extra_conf=kwargs.get("config"))
@@ -65,9 +66,9 @@ class RhelContainer:
             env: List of environment variables to set in container
             wait: wait for container/pod up and running.
         """
-        logger.info(f"Provisioning RHEL-{self.version.base_version} container")
+        logger.info(f"Provisioning RHEL-{self.version} container")
         repo = self.config.repositories.get(self.version.major)
-        image = f"{repo}:{self.version.base_version}"
+        image = f"{repo}:{self.release}"
         out = self.engine.run(image=image, hostname=hostname, envs=envs, *args, **kwargs)
         if wait:
             try:
