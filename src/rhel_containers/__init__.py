@@ -27,7 +27,9 @@ class RhelContainer:
         self.engine_name = engine_name
         self.release = str(release)
         self.version = version.parse(self.release)
-        self.name = name or f"rhel-{''.join(random.choice(string.ascii_letters).lower() for _ in range(5))}"
+        self.name = (
+            name or f"rhel-{''.join(random.choice(string.ascii_letters).lower() for _ in range(5))}"
+        )
         self.env = env
         self.config = load_config(env=self.env, extra_conf=kwargs.get("config"))
 
@@ -40,7 +42,9 @@ class RhelContainer:
 
         # Subscription
         self.subscription = Subscription(
-            engine=self.engine, config=self.config.subscription, env=self.env,
+            engine=self.engine,
+            config=self.config.subscription,
+            env=self.env,
         )
 
         # Insights-client
