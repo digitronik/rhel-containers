@@ -3,7 +3,7 @@ default:
     repositories:
       7: "registry.access.redhat.com/ubi7/ubi-init"
       8: "registry.access.redhat.com/ubi8/ubi-init"
-      9: "registry.access.redhat.com/ubi9-beta/ubi-init"
+      9: "registry.access.redhat.com/ubi9-init"
     subscription:
       username:
       password:
