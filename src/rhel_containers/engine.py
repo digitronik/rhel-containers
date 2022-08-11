@@ -25,7 +25,12 @@ class ContCommandResult:
         if sub_out.returncode != 0 and stderr:
             logger.warning(f"Error: {command} >> {stdout} >> {stderr}")
 
-        return cls(exit_status=sub_out.returncode, stdout=stdout, stderr=stderr, command=command,)
+        return cls(
+            exit_status=sub_out.returncode,
+            stdout=stdout,
+            stderr=stderr,
+            command=command,
+        )
 
     def __repr__(self):
         return f"ContCommandResult(exit_status={self.exit_status})"
