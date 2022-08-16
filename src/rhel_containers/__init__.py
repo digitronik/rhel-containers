@@ -73,6 +73,9 @@ class RhelContainer:
         logger.info(f"Provisioning RHEL-{self.version} container")
         repo = self.config.repositories.get(self.version.major)
         image = f"{repo}:{self.release}"
+
+        if self.version.major == 9:
+            envs = envs + ["SMDEV_CONTAINER_OFF=False"] if envs else ["SMDEV_CONTAINER_OFF=False"]
         out = self.engine.run(image=image, hostname=hostname, envs=envs, *args, **kwargs)
         if wait:
             try:
